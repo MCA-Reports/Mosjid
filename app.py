@@ -15,7 +15,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from contextlib import asynccontextmanager
 
 # MongoDB setup
-MONGODB_URL = "mongodb+srv://bdkz:<bdkz2025>@cluster0.yc3hbgc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+MONGODB_URL = "mongodb+srv://bdkz:bdkz2025@cluster0.yc3hbgc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 client = AsyncIOMotorClient(MONGODB_URL)
 db = client["mosque_finance"]
 
