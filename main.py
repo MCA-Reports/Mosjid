@@ -1,102 +1,3 @@
-<<<<<<< HEAD
-from flask import Flask, render_template, request, jsonify
-import pandas as pd
-import os
-
-app = Flask(__name__)
-FILE_PATH = "mosjid_data.xlsx"
-
-# Ensure the Excel file exists
-def load_or_create_excel():
-    if not os.path.exists(FILE_PATH):
-        with pd.ExcelWriter(FILE_PATH, engine="openpyxl") as writer:
-            pd.DataFrame(columns=["ID", "First Name", "Last Name", "Mobile No", "City", "User Type", "Fixed Amount"]).to_excel(writer, sheet_name="Registrations", index=False)
-            pd.DataFrame(columns=["ID", "Month", "Year", "Amount"]).to_excel(writer, sheet_name="Contributions", index=False)
-
-load_or_create_excel()
-
-@app.route("/")
-def index():
-    return render_template("index.html")
-
-@app.route("/register", methods=["POST"])
-def register():
-    df = pd.read_excel(FILE_PATH, sheet_name="Registrations")
-
-    # Assign the next available ID (1 to 1000)
-    next_id = str(len(df) + 1) if len(df) < 1000 else "Limit Reached"
-
-    if next_id == "Limit Reached":
-        return jsonify({"success": False, "message": "Registration limit reached (1-1000 IDs allowed)."})
-
-    new_entry = pd.DataFrame([{
-        "ID": next_id,
-        "First Name": request.form["first_name"],
-        "Last Name": request.form["last_name"],
-        "Mobile No": request.form["mobile_no"],
-        "City": request.form["city"],
-        "User Type": request.form["user_type"],
-        "Fixed Amount": request.form["fixed_amount"],
-    }])
-
-    df = pd.concat([df, new_entry], ignore_index=True)
-
-    with pd.ExcelWriter(FILE_PATH, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
-        df.to_excel(writer, sheet_name="Registrations", index=False)
-
-    return jsonify({"success": True, "message": f"Member Registered! ID: {next_id}"})
-
-@app.route("/search", methods=["POST"])
-def search():
-    member_id = request.form["member_id"]
-    reg_df = pd.read_excel(FILE_PATH, sheet_name="Registrations")
-    contrib_df = pd.read_excel(FILE_PATH, sheet_name="Contributions")
-
-    # Fetch member details
-    member_data = reg_df[reg_df["ID"].astype(str) == member_id]
-    if member_data.empty:
-        return jsonify({"success": False, "message": "Member not found."})
-
-    member_info = member_data.to_dict(orient="records")[0]
-
-    # Fetch contribution history
-    contrib_history = contrib_df[contrib_df["ID"].astype(str) == member_id]
-    contributions = contrib_history.to_dict(orient="records")
-
-    return jsonify({"success": True, "member": member_info, "contributions": contributions})
-
-@app.route("/contribute", methods=["POST"])
-def contribute():
-    reg_df = pd.read_excel(FILE_PATH, sheet_name="Registrations")
-    contrib_df = pd.read_excel(FILE_PATH, sheet_name="Contributions")
-
-    member_id = request.form["member_id"]
-    month = request.form["month"]
-    year = request.form["year"]
-    amount = request.form["amount"]
-
-    # Check if member exists before adding contribution
-    if not reg_df[reg_df["ID"].astype(str) == member_id].empty:
-        new_entry = pd.DataFrame([{
-            "ID": member_id,
-            "Month": month,
-            "Year": year,
-            "Amount": amount,
-        }])
-
-        contrib_df = pd.concat([contrib_df, new_entry], ignore_index=True)
-
-        with pd.ExcelWriter(FILE_PATH, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
-            contrib_df.to_excel(writer, sheet_name="Contributions", index=False)
-
-        return jsonify({"success": True, "message": "Contribution Added Successfully!"})
-    else:
-        return jsonify({"success": False, "message": "Invalid Member ID. Please register first."})
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
-
-=======
 # main.py
 from fastapi import FastAPI, Depends, HTTPException, status, Request, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -106,12 +7,13 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from datetime import datetime, timedelta
-import jwt
+import jWT
 import bcrypt
 import os
 from pathlib import Path
 from motor.motor_asyncio import AsyncIOMotorClient
 from contextlib import asynccontextmanager
+from bson import ObjectId
 
 # MongoDB setup
 MONGODB_URL = "mongodb+srv://bdkz:bdkz2025@cluster0.yc3hbgc.mongodb.net/mosque_finance?retryWrites=true&w=majority"
@@ -171,14 +73,12 @@ security = HTTPBearer()
 
 # Templates and static files
 templates = Jinja2Templates(directory="templates")
-
-# Create templates directory if it doesn't exist
 Path("templates").mkdir(exist_ok=True)
 Path("static").mkdir(exist_ok=True)
 
 # Helper functions
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8', 'ignore')
 
 def verify_password(password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
@@ -214,7 +114,6 @@ async def get_admin_user(current_user: dict = Depends(get_current_user)):
 # Initialize admin user on startup
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     admin_user = await users_collection.find_one({"username": "admin"})
     if not admin_user:
         hashed_password = hash_password("admin123")
@@ -227,11 +126,7 @@ async def lifespan(app: FastAPI):
         }
         await users_collection.insert_one(admin_user)
         print("Admin user created: username=admin, password=admin123")
-    
     yield
-    
-    # Shutdown
-    pass
 
 app.router.lifespan_context = lifespan
 
@@ -256,16 +151,14 @@ async def dashboard(request: Request):
 async def admin_dashboard(request: Request):
     return templates.TemplateResponse("admin.html", {"request": request})
 
-# Authentication endpoints
+# Authentication
 @app.post("/api/register")
 async def register_user(user: UserCreate):
-    # Check if user already exists
     if await users_collection.find_one({"username": user.username}):
         raise HTTPException(status_code=400, detail="Username already registered")
     if await users_collection.find_one({"email": user.email}):
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # Create new user
     hashed_password = hash_password(user.password)
     db_user = {
         "username": user.username,
@@ -274,8 +167,7 @@ async def register_user(user: UserCreate):
         "is_admin": user.is_admin,
         "created_at": datetime.utcnow()
     }
-    result = await users_collection.insert_one(db_user)
-    
+    await users_collection.insert_one(db_user)
     return {"message": "User registered successfully"}
 
 @app.post("/api/login")
@@ -291,18 +183,16 @@ async def login(user: UserLogin):
         "is_admin": db_user.get("is_admin", False)
     }
 
-# Member management endpoints
+# Members
 @app.post("/api/members")
 async def create_member(member: MemberCreate, current_user: dict = Depends(get_current_user)):
-    # Check if mobile number already exists
     if await members_collection.find_one({"mobile_no": member.mobile_no}):
         raise HTTPException(status_code=400, detail="Mobile number already registered")
     
     db_member = member.dict()
     db_member["created_at"] = datetime.utcnow()
     result = await members_collection.insert_one(db_member)
-    
-    return {"message": f"Member registered successfully! ID: {result.inserted_id}", "member_id": str(result.inserted_id)}
+    return {"message": "Member registered successfully!", "member_id": str(result.inserted_id)}
 
 @app.get("/api/members")
 async def get_members(current_user: dict = Depends(get_current_user)):
@@ -313,7 +203,7 @@ async def get_members(current_user: dict = Depends(get_current_user)):
 
 @app.get("/api/members/{member_id}")
 async def get_member(member_id: str, current_user: dict = Depends(get_current_user)):
-    member = await members_collection.find_one({"_id": member_id})
+    member = await members_collection.find_one({"_id": ObjectId(member_id)})
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
     
@@ -323,18 +213,17 @@ async def get_member(member_id: str, current_user: dict = Depends(get_current_us
     
     return {"member": member, "contributions": contributions}
 
-# Contribution endpoints
+# Contributions
 @app.post("/api/contributions")
 async def create_contribution(contribution: ContributionCreate, current_user: dict = Depends(get_current_user)):
-    # Check if member exists
-    member = await members_collection.find_one({"_id": contribution.member_id})
+    member = await members_collection.find_one({"_id": ObjectId(contribution.member_id)})
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
     
     db_contribution = contribution.dict()
+    db_contribution["member_id"] = str(member["_id"])  # ensure stored as string
     db_contribution["created_at"] = datetime.utcnow()
-    result = await contributions_collection.insert_one(db_contribution)
-    
+    await contributions_collection.insert_one(db_contribution)
     return {"message": "Contribution added successfully!"}
 
 @app.get("/api/contributions")
@@ -344,14 +233,13 @@ async def get_contributions(current_user: dict = Depends(get_current_user)):
         contributions.append(contribution)
     return contributions
 
-# Income and Expense endpoints (Admin only)
+# Income & expenses
 @app.post("/api/income")
 async def create_income(income: IncomeCreate, current_user: dict = Depends(get_admin_user)):
     db_income = income.dict()
     db_income["date"] = datetime.utcnow()
     db_income["added_by"] = current_user["_id"]
     await income_collection.insert_one(db_income)
-    
     return {"message": "Income added successfully!"}
 
 @app.post("/api/expenses")
@@ -360,7 +248,6 @@ async def create_expense(expense: ExpenseCreate, current_user: dict = Depends(ge
     db_expense["date"] = datetime.utcnow()
     db_expense["added_by"] = current_user["_id"]
     await expenses_collection.insert_one(db_expense)
-    
     return {"message": "Expense added successfully!"}
 
 @app.get("/api/income")
@@ -377,14 +264,11 @@ async def get_expenses(current_user: dict = Depends(get_current_user)):
         expenses.append(expense)
     return expenses
 
-# Dashboard data endpoint
+# Dashboard
 @app.get("/api/dashboard")
 async def get_dashboard_data(current_user: dict = Depends(get_current_user)):
     total_members = await members_collection.count_documents({})
-    
-    pipeline = [
-        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-    ]
+    pipeline = [{"$group": {"_id": None, "total": {"$sum": "$amount"}}}]
     
     total_contributions = await contributions_collection.aggregate(pipeline).to_list(1)
     total_income = await income_collection.aggregate(pipeline).to_list(1)
@@ -399,13 +283,12 @@ async def get_dashboard_data(current_user: dict = Depends(get_current_user)):
         "total_contributions": total_contributions[0]["total"] if total_contributions else 0,
         "total_income": total_income[0]["total"] if total_income else 0,
         "total_expenses": total_expenses[0]["total"] if total_expenses else 0,
-        "net_balance": (total_contributions[0]["total"] if total_contributions else 0) + 
-                      (total_income[0]["total"] if total_income else 0) - 
-                      (total_expenses[0]["total"] if total_expenses else 0),
+        "net_balance": (total_contributions[0]["total"] if total_contributions else 0)
+                        + (total_income[0]["total"] if total_income else 0)
+                        - (total_expenses[0]["total"] if total_expenses else 0),
         "recent_contributions": recent_contributions
     }
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=5000)  # Changed from 8000 to 5000
->>>>>>> main
+    uvicorn.run(app, host="127.0.0.1", port=5000)

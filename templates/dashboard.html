@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Mosque Finance{% endblock %}
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="text-white mb-4">
+                <i class="fas fa-tachometer-alt"></i> Dashboard
+            </h1>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stats-card text-center">
+                <h4>Total Members</h4>
+                <h2 id="total_members">0</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card text-center">
+                <h4>Contributions</h4>
+                <h2 id="total_contributions">0</h2>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stats-card text-center">
+                <h4>Income</h4>
+                <h2 id="total_income">0</h2>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stats-card text-center">
+                <h4>Expenses</h4>
+                <h2 id="total_expenses">0</h2>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stats-card text-center">
+                <h4>Net Balance</h4>
+                <h2 id="net_balance">0</h2>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <!-- Member Registration -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header"><h5><i class="fas fa-user-plus"></i> Register New Member</h5></div>
+                <div class="card-body">
+                    <form id="memberForm">
+                        <div class="mb-3">
+                            <label for="first_name" class="form-label">First Name</label>
+                            <input type="text" class="form-control" id="first_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="last_name" class="form-label">Last Name</label>
+                            <input type="text" class="form-control" id="last_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="mobile_no" class="form-label">Mobile Number</label>
+                            <input type="tel" class="form-control" id="mobile_no" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="city" class="form-label">City</label>
+                            <input type="text" class="form-control" id="city" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="user_type" class="form-label">User Type</label>
+                            <select class="form-control" id="user_type" required>
+                                <option value="">Select Type</option>
+                                <option value="Regular">Regular</option>
+                                <option value="Premium">Premium</option>
+                                <option value="VIP">VIP</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="fixed_amount" class="form-label">Fixed Amount</label>
+                            <input type="number" class="form-control" id="fixed_amount" step="0.01" value="0">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-user-plus"></i> Register Member
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Member Search & Contribution -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header"><h5><i class="fas fa-search"></i> Member Search & Contribution</h5></div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="search_id" class="form-label">Member ID</label>
+                        <input type="text" class="form-control" id="search_id">
+                        <button type="button" class="btn btn-outline-primary mt-2" onclick="searchMember()">
+                            <i class="fas fa-search"></i> Search
+                        </button>
+                    </div>
+                    <div id="memberInfo" style="display:none;">
+                        <div class="alert alert-info">
+                            <div id="memberDetails"></div>
+                        </div>
+                        <form id="contributionForm">
+                            <div class="mb-3">
+                                <label for="month" class="form-label">Month</label>
+                                <select class="form-control" id="month" required>
+                                    <option value="">Select Month</option>
+                                    {% for m in ["January","February","March","April","May","June","July","August","September","October","November","December"] %}
+                                        <option value="{{m}}">{{m}}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="year" class="form-label">Year</label>
+                                <input type="number" class="form-control" id="year" value="2025">
+                            </div>
+                            <div class="mb-3">
+                                <label for="amount" class="form-label">Amount</label>
+                                <input type="number" class="form-control" id="amount" step="0.01">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-donate"></i> Add Contribution
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function loadDashboardData() {
+    try {
+        const response = await fetch('/api/dashboard', { headers: getAuthHeaders() });
+        const data = await response.json();
+        document.getElementById('total_members').innerText = data.total_members;
+        document.getElementById('total_contributions').innerText = data.total_contributions;
+        document.getElementById('total_income').innerText = data.total_income;
+        document.getElementById('total_expenses').innerText = data.total_expenses;
+        document.getElementById('net_balance').innerText = data.net_balance;
+    } catch (error) {
+        console.error('Error loading dashboard:', error);
+    }
+}
+
+document.getElementById('memberForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = JSON.stringify({
+        first_name: document.getElementById('first_name').value,
+        last_name: document.getElementById('last_name').value,
+        mobile_no: document.getElementById('mobile_no').value,
+        city: document.getElementById('city').value,
+        user_type: document.getElementById('user_type').value,
+        fixed_amount: parseFloat(document.getElementById('fixed_amount').value)
+    });
+    const response = await fetch('/api/members', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body
+    });
+    const data = await response.json();
+    if (response.ok) {
+        alert('Member registered successfully!');
+        loadDashboardData();
+    } else {
+        alert(data.detail || 'Failed to register member');
+    }
+});
+
+async function searchMember() {
+    const id = document.getElementById('search_id').value;
+    const response = await fetch(`/api/members/${id}`, { headers: getAuthHeaders() });
+    const data = await response.json();
+    if (response.ok) {
+        document.getElementById('memberDetails').innerHTML = `
+            <strong>${data.member.first_name} ${data.member.last_name}</strong><br>
+            Mobile: ${data.member.mobile_no}<br>
+            City: ${data.member.city}<br>
+            User Type: ${data.member.user_type}`;
+        document.getElementById('memberInfo').style.display = 'block';
+    } else {
+        alert(data.detail || 'Member not found');
+    }
+}
+
+document.getElementById('contributionForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = JSON.stringify({
+        member_id: document.getElementById('search_id').value,
+        month: document.getElementById('month').value,
+        year: parseInt(document.getElementById('year').value),
+        amount: parseFloat(document.getElementById('amount').value)
+    });
+    const response = await fetch('/api/contributions', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body
+    });
+    const data = await response.json();
+    if (response.ok) {
+        alert('Contribution added!');
+        loadDashboardData();
+    } else {
+        alert(data.detail || 'Failed to add contribution');
+    }
+});
+
+window.onload = loadDashboardData;
+</script>
+{% endblock %}
