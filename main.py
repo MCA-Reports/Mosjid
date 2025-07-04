@@ -19,7 +19,8 @@ contributions_collection = mongo.db.contributions
 
 # Utility functions
 def valid_mobile(mobile):
-    return re.match(r'^\+?[\d\s-()]{10,15}$', mobile)
+    return re.match(r'^\+?[\d\s()-]{10,15}$', mobile)
+
 
 def initialize_admin():
     """Create admin user if not exists with plain text password"""
@@ -65,9 +66,8 @@ with app.app_context():
 # Routes
 @app.route('/')
 def home():
-    if 'username' in session:
-        return redirect('/admin' if session.get('role') == 'admin' else '/member')
     return render_template('login.html')
+
 
 @app.route('/register')
 def register_page():
@@ -183,9 +183,6 @@ def get_members():
 
 @app.route('/api/contributions', methods=['POST'])
 def create_contribution():
-    if 'username' not in session:
-        return jsonify({"detail": "Unauthorized"}), 401
-
     data = request.json
     required_fields = ['amount', 'payment_method', 'purpose', 'member_id']
     for field in required_fields:
@@ -213,7 +210,7 @@ def create_contribution():
             "date": now,
             "month": now.month,
             "year": now.year,
-            "recorded_by": session['username']
+            "recorded_by": data.get("recorded_by", "system")
         }
 
         contributions_collection.insert_one(contribution_data)
@@ -274,6 +271,45 @@ def get_contributions():
         
     except Exception as e:
         return jsonify({"detail": f"Error retrieving contributions: {str(e)}"}), 500
+
+@app.route('/api/stats')
+def get_stats():
+    now = datetime.utcnow()
+    month = now.month
+    year = now.year
+
+    # Total members
+    total_members = members_collection.count_documents({})
+
+    # This month's contributions
+    this_month_pipeline = [
+        {"$match": {"month": month, "year": year}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+    ]
+    this_month_data = list(contributions_collection.aggregate(this_month_pipeline))
+    this_month_total = this_month_data[0]['total'] if this_month_data else 0
+
+    # This year's contributions
+    this_year_pipeline = [
+        {"$match": {"year": year}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+    ]
+    this_year_data = list(contributions_collection.aggregate(this_year_pipeline))
+    this_year_total = this_year_data[0]['total'] if this_year_data else 0
+
+    # Total collected contributions
+    total_pipeline = [
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+    ]
+    total_data = list(contributions_collection.aggregate(total_pipeline))
+    total_collected = total_data[0]['total'] if total_data else 0
+
+    return jsonify({
+        "total_members": total_members,
+        "this_month": this_month_total,
+        "this_year": this_year_total,
+        "total_collected": total_collected
+    })
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv('PORT', 5000)), debug=os.getenv('FLASK_DEBUG', 'False') == 'True')

@@ -1,48 +1,84 @@
-{% extends "base.html" %}
-{% block title %}Member Dashboard{% endblock %}
-{% block content %}
-<div class="container">
-    <h1 class="text-white mb-4"><i class="fas fa-tachometer-alt"></i> Welcome <span id="welcomeName"></span>!</h1>
-    <a href="/logout" class="btn btn-outline-light">
-    <i class="fas fa-sign-out-alt"></i> Logout
-</a>
-    <div class="card mb-4">
-        <div class="card-body">
-            <h5>Your Summary This Year</h5>
-            Total Given: <strong id="totalGiven">0</strong><br>
-            Due This Year: <strong id="dueAmount">0</strong>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Member Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* (Insert CSS from above here) */
+    </style>
+</head>
+<body>
+<div class="container py-4">
+    <h2 id="welcome"></h2>
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header">Your Profile</div>
+                <div class="card-body" id="profile"></div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card h-100">
+                <div class="card-header">Contribution Summary</div>
+                <div class="card-body" id="summary"></div>
+            </div>
         </div>
     </div>
     <div class="card">
-        <div class="card-body">
-            <h5>Donation History</h5>
-            <table class="table">
-                <thead><tr><th>Date</th><th>Month</th><th>Description</th><th>Amount</th></tr></thead>
-                <tbody id="donationHistory"></tbody>
+        <div class="card-header">Contribution History</div>
+        <div class="card-body p-0">
+            <table class="table mb-0" id="contributions">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Amount</th>
+                        <th>Purpose</th>
+                        <th>Payment Method</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
             </table>
         </div>
     </div>
+    <div class="d-flex justify-content-end">
+        <a href="/logout" class="btn btn-danger mt-3">Logout</a>
+    </div>
 </div>
-{% endblock %}
-{% block scripts %}
 <script>
-async function loadMember() {
-    const username = localStorage.getItem('username');
-    const res = await fetch(`/api/members?search=${username}`, { headers: getAuthHeaders() });
-    const data = await res.json();
-    if (!data.members.length) return document.getElementById('welcomeName').innerText=username;
-    const member = data.members[0];
-    document.getElementById('welcomeName').innerText = `${member.first_name} ${member.last_name}`;
-    const contribRes = await fetch(`/api/members/${member._id}`, { headers: getAuthHeaders() });
-    const contribData = await contribRes.json();
-    let totalThisYear=0, year=new Date().getFullYear();
-    contribData.contributions.forEach(c => {
-        if(c.year===year) totalThisYear+=c.amount;
-        document.getElementById('donationHistory').innerHTML+=`<tr><td>${new Date(c.created_at).toLocaleDateString()}</td><td>${c.month}</td><td>${c.description||'General'}</td><td>${c.amount}</td></tr>`;
-    });
-    document.getElementById('totalGiven').innerText=totalThisYear;
-    document.getElementById('dueAmount').innerText=((member.fixed_amount||0)*12 - totalThisYear).toFixed(2);
-}
-window.onload=loadMember;
+document.addEventListener("DOMContentLoaded", function() {
+    // Fetch member info
+    fetch('/api/member_info')
+        .then(res => res.json())
+        .then(member => {
+            document.getElementById('welcome').textContent = `Welcome, ${member.first_name}!`;
+            document.getElementById('profile').innerHTML = `
+                <b>Name:</b> ${member.first_name} ${member.last_name}<br>
+                <b>Mobile:</b> ${member.mobile_no}<br>
+                <b>City:</b> ${member.city}<br>
+                <b>Fixed Amount:</b> ${member.fixed_amount || 0}
+            `;
+        });
+
+    // Fetch contributions
+    fetch('/api/contributions?member_id=' + {{ session['member_id'] }})
+        .then(res => res.json())
+        .then(data => {
+            let tbody = document.querySelector('#contributions tbody');
+            let total = 0;
+            data.data.forEach(c => {
+                total += c.amount;
+                let row = `<tr>
+                    <td>${new Date(c.date).toLocaleDateString()}</td>
+                    <td>${c.amount}</td>
+                    <td>${c.purpose}</td>
+                    <td>${c.payment_method}</td>
+                </tr>`;
+                tbody.innerHTML += row;
+            });
+            document.getElementById('summary').innerHTML = `<b>Total Contributions:</b> <span class="text-success">${total}</span>`;
+        });
+});
 </script>
-{% endblock %}
+</body>
+</html>

@@ -1,297 +1,1160 @@
-{% extends "base.html" %}
-{% block title %}Admin Dashboard{% endblock %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Mosque Finance</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-{% block content %}
-<div class="container py-5">
-    <div class="text-center text-white mb-5">
-        <h1><i class="fas fa-user-cog"></i> Admin Dashboard</h1>
-        <p class="lead">Manage members, contributions & view financial reports</p>
-    </div>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
 
-    <!-- Top Stats -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="stats-card text-center">
-                <h5>Total Members</h5>
-                <h2 id="totalMembers" class="count-up">0</h2>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stats-card text-center">
-                <h5>This Month</h5>
-                <h2 id="thisMonth" class="count-up">$0</h2>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stats-card text-center">
-                <h5>This Year</h5>
-                <h2 id="thisYear" class="count-up">$0</h2>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stats-card text-center">
-                <h5>Total Collected</h5>
-                <h2 id="totalCollected" class="count-up">$0</h2>
-            </div>
-        </div>
-    </div>
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            min-height: 100vh;
+        }
 
-    <!-- Tabs -->
-    <ul class="nav nav-pills mb-4 justify-content-center" id="adminTabs">
-        <li class="nav-item">
-            <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#membersTab">Members</button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#contributionsTab">Contributions</button>
-        </li>
-    </ul>
+        .sidebar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 2rem 0;
+            box-shadow: 2px 0 20px rgba(0, 0, 0, 0.1);
+        }
 
-    <div class="tab-content">
-        <!-- Members Tab -->
-        <div class="tab-pane fade show active" id="membersTab">
-            <div class="row">
-                <div class="col-md-6 mb-4">
-                    <div class="card p-4">
-                        <h5><i class="fas fa-user-plus"></i> Add New Member</h5>
-                        <form id="addMemberForm">
-                            <input type="text" name="first_name" class="form-control mb-3" placeholder="First Name" required>
-                            <input type="text" name="last_name" class="form-control mb-3" placeholder="Last Name" required>
-                            <input type="tel" name="mobile_no" class="form-control mb-3" placeholder="Mobile Number" required>
-                            <input type="password" name="password" class="form-control mb-3" placeholder="Password" required>
-                            <input type="text" name="city" class="form-control mb-3" placeholder="City">
-                            <input type="number" step="0.01" name="fixed_amount" class="form-control mb-3" placeholder="Fixed Amount">
-                            <button type="submit" class="btn btn-primary w-100"><i class="fas fa-plus"></i> Add Member</button>
-                        </form>
-                    </div>
-                </div>
-                <div class="col-md-6 mb-4">
-                    <div class="card p-4">
-                        <h5><i class="fas fa-list"></i> Members List</h5>
-                        <input type="text" class="form-control mb-3" id="searchMembers" placeholder="Search members...">
-                        <div id="membersList" class="list-group" style="max-height:400px; overflow-y:auto;"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        .sidebar-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 0 1rem;
+        }
 
-        <!-- Contributions Tab -->
-        <div class="tab-pane fade" id="contributionsTab">
-            <div class="row">
-                <div class="col-md-6 mb-4">
-                    <div class="card p-4">
-                        <h5><i class="fas fa-money-bill"></i> Record Contribution</h5>
-                        <form id="addContributionForm">
-                            <select id="contributionMember" name="member_id" class="form-select mb-3" required>
-                                <option value="">Select Member...</option>
-                            </select>
-                            <input type="number" name="amount" class="form-control mb-3" placeholder="Amount" step="0.01" required>
-                            <input type="date" name="date" class="form-control mb-3" id="contributionDate" required>
-                            <select name="payment_method" class="form-select mb-3" required>
-                                <option value="cash">Cash</option>
-                                <option value="bank_transfer">Bank Transfer</option>
-                                <option value="mobile_money">Mobile Money</option>
-                            </select>
-                            <input type="text" name="purpose" class="form-control mb-3" placeholder="Purpose" required>
-                            <button type="submit" class="btn btn-success w-100"><i class="fas fa-save"></i> Record</button>
-                        </form>
-                    </div>
-                </div>
-                <div class="col-md-6 mb-4">
-                    <div class="card p-4">
-                        <h5><i class="fas fa-history"></i> Recent Contributions</h5>
-                        <div id="contributionsList" style="max-height:400px; overflow-y:auto;"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+        .sidebar-header h2 {
+            color: #4a5568;
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
 
-<!-- Toast Container -->
-<div id="messageContainer" class="position-fixed top-0 end-0 p-3" style="z-index:1050;"></div>
-{% endblock %}
+        .sidebar-header p {
+            color: #718096;
+            font-size: 0.9rem;
+        }
 
-{% block scripts %}
-<script>
-// Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    loadMembers();
-    loadMemberOptions();
-    loadContributions();
-    document.getElementById('contributionDate').value = new Date().toISOString().split('T')[0];
-    
-    // Member form submission
-    document.getElementById('addMemberForm').addEventListener('submit', async e => {
-        e.preventDefault();
-        const formData = Object.fromEntries(new FormData(e.target));
-        
-        try {
-            const response = await fetch('/api/members', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(formData)
-            });
-            
-            const data = await response.json();
-            
-            if (response.ok) {
-                showMessage('Member added successfully!');
-                e.target.reset();
-                loadMembers();
-                loadMemberOptions();
-            } else {
-                showMessage(data.detail || 'Error adding member', 'danger');
+        .nav-menu {
+            list-style: none;
+        }
+
+        .nav-item {
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1.5rem;
+            color: #4a5568;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            background: rgba(102, 126, 234, 0.1);
+            border-left-color: #667eea;
+            color: #667eea;
+        }
+
+        .nav-icon {
+            margin-right: 0.75rem;
+            font-size: 1.1rem;
+        }
+
+        .main-content {
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 1rem 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            color: #4a5568;
+            font-size: 1.8rem;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 1.5rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .stat-title {
+            color: #718096;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: white;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #4a5568;
+        }
+
+        .stat-change {
+            font-size: 0.8rem;
+            color: #48bb78;
+            margin-top: 0.5rem;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 1.5rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .card-title {
+            font-size: 1.2rem;
+            color: #4a5568;
+            font-weight: 600;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5a67d8;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+
+        .btn-danger {
+            background: #e53e3e;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c53030;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        th {
+            background: rgba(102, 126, 234, 0.1);
+            color: #4a5568;
+            font-weight: 600;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: white;
+            margin: 5% auto;
+            padding: 2rem;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #4a5568;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .alert {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            border: 1px solid transparent;
+        }
+
+        .alert-success {
+            background: #f0fff4;
+            border-color: #68d391;
+            color: #22543d;
+        }
+
+        .alert-error {
+            background: #fed7d7;
+            border-color: #fc8181;
+            color: #742a2a;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .pagination button {
+            padding: 0.5rem 1rem;
+            border: 1px solid #e2e8f0;
+            background: white;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .pagination button.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .search-bar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .search-bar input {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+
+        .logout-btn {
+            background: #e53e3e;
+            color: white;
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: #c53030;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-container {
+                grid-template-columns: 1fr;
             }
-        } catch (error) {
-            showMessage('Network error occurred', 'danger');
-        }
-    });
-
-    // Contribution form submission
-    document.getElementById('addContributionForm').addEventListener('submit', async e => {
-        e.preventDefault();
-        const formData = Object.fromEntries(new FormData(e.target));
-        
-        try {
-            const response = await fetch('/api/contributions', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(formData)
-            });
             
-            const data = await response.json();
-            
-            if (response.ok) {
-                showMessage('Contribution recorded successfully!');
-                e.target.reset();
-                loadContributions();
-            } else {
-                showMessage(data.detail || 'Error recording contribution', 'danger');
+            .sidebar {
+                display: none;
             }
-        } catch (error) {
-            showMessage('Network error occurred', 'danger');
-        }
-    });
-});
-
-// Load members list
-async function loadMembers() {
-    try {
-        const response = await fetch('/api/members');
-        const members = await response.json();
-        const membersList = document.getElementById('membersList');
-        
-        membersList.innerHTML = '';
-        
-        members.forEach(member => {
-            const memberItem = document.createElement('div');
-            memberItem.className = 'list-group-item list-group-item-action';
-            memberItem.innerHTML = `
-                <div class="d-flex justify-content-between">
-                    <strong>${member.first_name} ${member.last_name}</strong>
-                    <small>ID: ${member.member_id}</small>
-                </div>
-                <div><small>${member.mobile_no} | ${member.city || 'N/A'}</small></div>
-                <div><small>Fixed: $${member.fixed_amount || 0}</small></div>
-            `;
-            membersList.appendChild(memberItem);
-        });
-
-        // Add search functionality
-        document.getElementById('searchMembers').addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            const items = membersList.querySelectorAll('.list-group-item');
             
-            items.forEach(item => {
-                const text = item.textContent.toLowerCase();
-                item.style.display = text.includes(searchTerm) ? 'block' : 'none';
-            });
-        });
-    } catch (error) {
-        showMessage('Failed to load members', 'danger');
-    }
-}
-
-// Load members for contribution dropdown
-async function loadMemberOptions() {
-    try {
-        const response = await fetch('/api/members');
-        const members = await response.json();
-        const select = document.getElementById('contributionMember');
-        
-        // Clear existing options except the first one
-        while (select.options.length > 1) {
-            select.remove(1);
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
         }
-        
-        members.forEach(member => {
-            const option = document.createElement('option');
-            option.value = member.member_id;
-            option.textContent = `${member.first_name} ${member.last_name} (${member.mobile_no})`;
-            select.appendChild(option);
-        });
-    } catch (error) {
-        showMessage('Failed to load member options', 'danger');
-    }
-}
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>🕌 Mosque Finance</h2>
+                <p>Admin Dashboard</p>
+            </div>
+            <nav>
+                <ul class="nav-menu">
+                    <li class="nav-item">
+                        <a href="#" class="nav-link active" data-section="dashboard">
+                            <span class="nav-icon">📊</span>
+                            Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-section="members">
+                            <span class="nav-icon">👥</span>
+                            Members
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-section="contributions">
+                            <span class="nav-icon">💰</span>
+                            Contributions
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-section="reports">
+                            <span class="nav-icon">📈</span>
+                            Reports
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
 
-// Load contributions list
-async function loadContributions() {
-    try {
-        const response = await fetch('/api/contributions');
-        const contributions = await response.json();
-        const contributionsList = document.getElementById('contributionsList');
-        
-        contributionsList.innerHTML = '';
-        
-        if (contributions.length === 0) {
-            contributionsList.innerHTML = '<div class="text-center py-3">No contributions found</div>';
-            return;
-        }
-        
-        contributions.forEach(contribution => {
-            const contributionItem = document.createElement('div');
-            contributionItem.className = 'list-group-item';
-            contributionItem.innerHTML = `
-                <div class="d-flex justify-content-between">
-                    <strong>Member ID: ${contribution.member_id}</strong>
-                    <span class="badge bg-primary">$${contribution.amount}</span>
+        <main class="main-content">
+            <header class="header">
+                <h1 id="page-title">Dashboard Overview</h1>
+                <div class="user-info">
+                    <span>Welcome, Admin</span>
+                    <a href="/logout" class="logout-btn">Logout</a>
                 </div>
-                <div class="text-muted small">
-                    ${new Date(contribution.date).toLocaleDateString()} - 
-                    ${contribution.payment_method} - 
-                    ${contribution.purpose}
-                </div>
-                <div class="small">Recorded by: ${contribution.recorded_by}</div>
-            `;
-            contributionsList.appendChild(contributionItem);
-        });
-    } catch (error) {
-        showMessage('Failed to load contributions', 'danger');
-    }
-}
+            </header>
 
-// Show toast messages
-function showMessage(message, type = 'success') {
-    const container = document.getElementById('messageContainer');
-    const toast = document.createElement('div');
-    toast.className = `toast show align-items-center text-white bg-${type} border-0`;
-    toast.setAttribute('role', 'alert');
-    toast.setAttribute('aria-live', 'assertive');
-    toast.setAttribute('aria-atomic', 'true');
-    toast.innerHTML = `
-        <div class="d-flex">
-            <div class="toast-body">${message}</div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            <div id="alerts"></div>
+
+            <!-- Dashboard Section -->
+            <section id="dashboard-section" class="content-section">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-title">Total Members</span>
+                            <div class="stat-icon" style="background: #667eea;">👥</div>
+                        </div>
+                        <div class="stat-value" id="total-members">0</div>
+                        <div class="stat-change">+12% from last month</div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-title">This Month</span>
+                            <div class="stat-icon" style="background: #48bb78;">💰</div>
+                        </div>
+                        <div class="stat-value" id="this-month">$0</div>
+                        <div class="stat-change">+8% from last month</div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-title">This Year</span>
+                            <div class="stat-icon" style="background: #ed8936;">📈</div>
+                        </div>
+                        <div class="stat-value" id="this-year">$0</div>
+                        <div class="stat-change">+15% from last year</div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-title">Total Collected</span>
+                            <div class="stat-icon" style="background: #38b2ac;">🏆</div>
+                        </div>
+                        <div class="stat-value" id="total-collected">$0</div>
+                        <div class="stat-change">All time contributions</div>
+                    </div>
+                </div>
+
+                <div class="content-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Monthly Contributions</h3>
+                        </div>
+                        <canvas id="contributionsChart"></canvas>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Recent Activity</h3>
+                        </div>
+                        <div id="recent-activity">
+                            <p>Loading recent activities...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Members Section -->
+            <section id="members-section" class="content-section" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Members Management</h3>
+                        <button class="btn btn-primary" onclick="openMemberModal()">
+                            ➕ Add Member
+                        </button>
+                    </div>
+                    
+                    <div class="search-bar">
+                        <input type="text" id="member-search" placeholder="Search members...">
+                        <button class="btn btn-secondary" onclick="searchMembers()">Search</button>
+                    </div>
+                    
+                    <div class="table-container">
+                        <table id="members-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Mobile</th>
+                                    <th>City</th>
+                                    <th>Fixed Amount</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="members-tbody">
+                                <!-- Members will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Contributions Section -->
+            <section id="contributions-section" class="content-section" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Contributions Management</h3>
+                        <button class="btn btn-primary" onclick="openContributionModal()">
+                            ➕ Add Contribution
+                        </button>
+                    </div>
+                    
+                    <div class="search-bar">
+                        <input type="date" id="start-date" placeholder="Start Date">
+                        <input type="date" id="end-date" placeholder="End Date">
+                        <select id="member-filter">
+                            <option value="">All Members</option>
+                        </select>
+                        <button class="btn btn-secondary" onclick="filterContributions()">Filter</button>
+                    </div>
+                    
+                    <div class="table-container">
+                        <table id="contributions-table">
+                            <thead>
+                                <tr>
+                                    <th>Transaction ID</th>
+                                    <th>Member ID</th>
+                                    <th>Amount</th>
+                                    <th>Method</th>
+                                    <th>Purpose</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contributions-tbody">
+                                <!-- Contributions will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="pagination" id="contributions-pagination">
+                        <!-- Pagination will be loaded here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Reports Section -->
+            <section id="reports-section" class="content-section" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Financial Reports</h3>
+                        <button class="btn btn-primary" onclick="exportReport()">
+                            📊 Export Report
+                        </button>
+                    </div>
+                    
+                    <div class="content-grid">
+                        <div class="card">
+                            <h4>Monthly Breakdown</h4>
+                            <canvas id="monthlyChart"></canvas>
+                        </div>
+                        
+                        <div class="card">
+                            <h4>Payment Methods</h4>
+                            <canvas id="paymentChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Member Modal -->
+    <div id="memberModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeMemberModal()">&times;</span>
+            <h2 id="member-modal-title">Add New Member</h2>
+            <form id="member-form">
+                <div class="form-group">
+                    <label for="first_name">First Name</label>
+                    <input type="text" id="first_name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="last_name">Last Name</label>
+                    <input type="text" id="last_name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="mobile_no">Mobile Number</label>
+                    <input type="tel" id="mobile_no" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="city">City</label>
+                    <input type="text" id="city">
+                </div>
+                
+                <div class="form-group">
+                    <label for="fixed_amount">Fixed Amount</label>
+                    <input type="number" id="fixed_amount" step="0.01" min="0">
+                </div>
+                
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary">Save Member</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeMemberModal()">Cancel</button>
+                </div>
+            </form>
         </div>
-    `;
-    container.appendChild(toast);
-    
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 150);
-    }, 5000);
-}
-</script>
-{% endblock %}  1
+    </div>
+
+    <!-- Contribution Modal -->
+    <div id="contributionModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeContributionModal()">&times;</span>
+            <h2>Add New Contribution</h2>
+            <form id="contribution-form">
+                <div class="form-group">
+                    <label for="contribution_member_id">Member</label>
+                    <select id="contribution_member_id" required>
+                        <option value="">Select Member</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="amount">Amount</label>
+                    <input type="number" id="amount" step="0.01" min="0" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="payment_method">Payment Method</label>
+                    <select id="payment_method" required>
+                        <option value="">Select Method</option>
+                        <option value="cash">Cash</option>
+                        <option value="card">Card</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                        <option value="online">Online</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="purpose">Purpose</label>
+                    <select id="purpose" required>
+                        <option value="">Select Purpose</option>
+                        <option value="monthly_contribution">Monthly Contribution</option>
+                        <option value="donation">Donation</option>
+                        <option value="zakat">Zakat</option>
+                        <option value="sadaqah">Sadaqah</option>
+                        <option value="special_event">Special Event</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary">Save Contribution</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeContributionModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentPage = 1;
+        let contributionsChart = null;
+        let monthlyChart = null;
+        let paymentChart = null;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStats();
+            loadMembers();
+            loadContributions();
+            initializeCharts();
+            setupNavigation();
+        });
+
+        // Navigation
+        function setupNavigation() {
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const section = this.getAttribute('data-section');
+                    switchSection(section);
+                    
+                    // Update active nav
+                    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                    this.classList.add('active');
+                });
+            });
+        }
+
+        function switchSection(section) {
+            // Hide all sections
+            document.querySelectorAll('.content-section').forEach(s => s.style.display = 'none');
+            
+            // Show selected section
+            document.getElementById(section + '-section').style.display = 'block';
+            
+            // Update page title
+            const titles = {
+                dashboard: 'Dashboard Overview',
+                members: 'Members Management',
+                contributions: 'Contributions Management',
+                reports: 'Financial Reports'
+            };
+            document.getElementById('page-title').textContent = titles[section];
+        }
+
+        // Load statistics
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                
+                document.getElementById('total-members').textContent = data.total_members || 0;
+                document.getElementById('this-month').textContent = '$' + (data.this_month || 0).toFixed(2);
+                document.getElementById('this-year').textContent = '$' + (data.this_year || 0).toFixed(2);
+                document.getElementById('total-collected').textContent = '$' + (data.total_collected || 0).toFixed(2);
+            } catch (error) {
+                console.error('Error loading stats:', error);
+                showAlert('Error loading statistics', 'error');
+            }
+        }
+
+        // Load members
+        async function loadMembers() {
+            try {
+                const response = await fetch('/api/members');
+                const members = await response.json();
+                
+                const tbody = document.getElementById('members-tbody');
+                tbody.innerHTML = '';
+                
+                members.forEach(member => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${member.member_id}</td>
+                        <td>${member.first_name} ${member.last_name}</td>
+                        <td>${member.mobile_no}</td>
+                        <td>${member.city || 'N/A'}</td>
+                        <td>$${member.fixed_amount.toFixed(2)}</td>
+                        <td>
+                            <button class="btn btn-secondary" onclick="editMember(${member.member_id})">Edit</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+                // Populate member filters
+                populateMemberFilters(members);
+            } catch (error) {
+                console.error('Error loading members:', error);
+                showAlert('Error loading members', 'error');
+            }
+        }
+
+        function populateMemberFilters(members) {
+            const filterSelect = document.getElementById('member-filter');
+            const contributionSelect = document.getElementById('contribution_member_id');
+            
+            filterSelect.innerHTML = '<option value="">All Members</option>';
+            contributionSelect.innerHTML = '<option value="">Select Member</option>';
+            
+            members.forEach(member => {
+                const option1 = document.createElement('option');
+                option1.value = member.member_id;
+                option1.textContent = `${member.first_name} ${member.last_name} (${member.member_id})`;
+                filterSelect.appendChild(option1);
+                
+                const option2 = document.createElement('option');
+                option2.value = member.member_id;
+                option2.textContent = `${member.first_name} ${member.last_name} (${member.member_id})`;
+                contributionSelect.appendChild(option2);
+            });
+        }
+
+        // Load contributions
+        async function loadContributions(page = 1, filters = {}) {
+            try {
+                const params = new URLSearchParams({
+                    page: page,
+                    per_page: 10,
+                    ...filters
+                });
+                
+                const response = await fetch(`/api/contributions?${params}`);
+                const data = await response.json();
+                
+                const tbody = document.getElementById('contributions-tbody');
+                tbody.innerHTML = '';
+                
+                data.data.forEach(contribution => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${contribution.transaction_id}</td>
+                        <td>${contribution.member_id}</td>
+                        <td>$${contribution.amount.toFixed(2)}</td>
+                        <td>${contribution.payment_method}</td>
+                        <td>${contribution.purpose}</td>
+                        <td>${new Date(contribution.date).toLocaleDateString()}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+                // Update pagination
+                updatePagination(data.pagination);
+            } catch (error) {
+                console.error('Error loading contributions:', error);
+                showAlert('Error loading contributions', 'error');
+            }
+        }
+
+        function updatePagination(pagination) {
+            const container = document.getElementById('contributions-pagination');
+            container.innerHTML = '';
+            
+            for (let i = 1; i <= pagination.total_pages; i++) {
+                const button = document.createElement('button');
+                button.textContent = i;
+                button.className = i === pagination.page ? 'active' : '';
+                button.onclick = () => loadContributions(i);
+                container.appendChild(button);
+            }
+        }
+
+        // Charts
+        function initializeCharts() {
+            // Contributions Chart
+            const ctx1 = document.getElementById('contributionsChart').getContext('2d');
+            contributionsChart = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                    datasets: [{
+                        label: 'Monthly Contributions',
+                        data: [12000, 19000, 15000, 25000, 22000, 30000],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+
+            // Monthly Chart
+            const ctx2 = document.getElementById('monthlyChart').getContext('2d');
+            monthlyChart = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                    datasets: [{
+                        label: 'Monthly Breakdown',
+                        data: [12000, 19000, 15000, 25000, 22000, 30000],
+                        backgroundColor: '#667eea'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+
+            // Payment Methods Chart
+            const ctx3 = document.getElementById('paymentChart').getContext('2d');
+            paymentChart = new Chart(ctx3, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Cash', 'Card', 'Bank Transfer', 'Online'],
+                    datasets: [{
+                        data: [45, 25, 20, 10],
+                        backgroundColor: ['#667eea', '#48bb78', '#ed8936', '#38b2ac']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        // Modal functions
+        function openMemberModal() {
+            document.getElementById('memberModal').style.display = 'block';
+            document.getElementById('member-form').reset();
+            document.getElementById('member-modal-title').textContent = 'Add New Member';
+        }
+
+        function closeMemberModal() {
+            document.getElementById('memberModal').style.display = 'none';
+        }
+
+        function openContributionModal() {
+            document.getElementById('contributionModal').style.display = 'block';
+            document.getElementById('contribution-form').reset();
+        }
+
+        function closeContributionModal() {
+            document.getElementById('contributionModal').style.display = 'none';
+        }
+
+        // Form submissions
+        document.getElementById('member-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                first_name: document.getElementById('first_name').value,
+                last_name: document.getElementById('last_name').value,
+                mobile_no: document.getElementById('mobile_no').value,
+                password: document.getElementById('password').value,
+                city: document.getElementById('city').value,
+                fixed_amount: parseFloat(document.getElementById('fixed_amount').value) || 0
+            };
+
+            try {
+                const response = await fetch('/api/members', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showAlert('Member created successfully!', 'success');
+                    closeMemberModal();
+                    loadMembers();
+                    loadStats();
+                } else {
+                    showAlert(result.detail || 'Error creating member', 'error');
+                }
+            } catch (error) {
+                console.error('Error creating member:', error);
+                showAlert('Error creating member', 'error');
+            }
+        });
+
+        document.getElementById('contribution-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                member_id: parseInt(document.getElementById('contribution_member_id').value),
+                amount: parseFloat(document.getElementById('amount').value),
+                payment_method: document.getElementById('payment_method').value,
+                purpose: document.getElementById('purpose').value,
+                recorded_by: 'admin'
+            };
+
+            try {
+                const response = await fetch('/api/contributions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showAlert('Contribution recorded successfully!', 'success');
+                    closeContributionModal();
+                    loadContributions();
+                    loadStats();
+                } else {
+                    showAlert(result.detail || 'Error recording contribution', 'error');
+                }
+            } catch (error) {
+                console.error('Error recording contribution:', error);
+                showAlert('Error recording contribution', 'error');
+            }
+        });
+
+        // Search and filter functions
+        function searchMembers() {
+            const searchTerm = document.getElementById('member-search').value.toLowerCase();
+            const rows = document.querySelectorAll('#members-tbody tr');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchTerm) ? '' : 'none';
+            });
+        }
+
+        function filterContributions() {
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+            const memberId = document.getElementById('member-filter').value;
+            
+            const filters = {};
+            if (startDate) filters.start_date = startDate;
+            if (endDate) filters.end_date = endDate;
+            if (memberId) filters.member_id = memberId;
+            
+            loadContributions(1, filters);
+        }
+
+        // Utility functions
+        function showAlert(message, type) {
+            const alertsContainer = document.getElementById('alerts');
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.textContent = message;
+            
+            alertsContainer.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+
+        function editMember(memberId) {
+            // This would open the modal with member data pre-filled
+            showAlert('Edit functionality would be implemented here', 'info');
+        }
+
+        function exportReport() {
+            // This would generate and download a report
+            showAlert('Export functionality would be implemented here', 'info');
+        }
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            const memberModal = document.getElementById('memberModal');
+            const contributionModal = document.getElementById('contributionModal');
+            
+            if (event.target === memberModal) {
+                closeMemberModal();
+            }
+            if (event.target === contributionModal) {
+                closeContributionModal();
+            }
+        }
+
+        // Real-time updates simulation
+        setInterval(() => {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            
+            // Update recent activity (simulated)
+            const recentActivity = document.getElementById('recent-activity');
+            if (recentActivity && Math.random() > 0.7) {
+                const activities = [
+                    'New member registered',
+                    'Contribution received',
+                    'Monthly report generated',
+                    'Payment processed'
+                ];
+                const randomActivity = activities[Math.floor(Math.random() * activities.length)];
+                recentActivity.innerHTML = `
+                    <div style="margin-bottom: 10px; padding: 10px; background: #f7fafc; border-radius: 5px; border-left: 3px solid #667eea;">
+                        <strong>${timeString}</strong><br>
+                        ${randomActivity}
+                    </div>
+                ` + recentActivity.innerHTML;
+                
+                // Keep only last 5 activities
+                const activities_divs = recentActivity.querySelectorAll('div');
+                if (activities_divs.length > 5) {
+                    activities_divs[activities_divs.length - 1].remove();
+                }
+            }
+        }, 30000); // Update every 30 seconds
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case 'm':
+                        e.preventDefault();
+                        openMemberModal();
+                        break;
+                    case 'c':
+                        e.preventDefault();
+                        openContributionModal();
+                        break;
+                    case 'r':
+                        e.preventDefault();
+                        loadStats();
+                        loadMembers();
+                        loadContributions();
+                        showAlert('Data refreshed', 'success');
+                        break;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
