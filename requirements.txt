@@ -1,6 +1,7 @@
-Flask>=3.0
-Flask-PyMongo>=3.0
-pymongo>=4.0
-python-dotenv>=1.0
-gunicorn>=23.0
-datetime>=4.0
+Flask==2.3.2
+Flask-PyMongo==2.3.0
+python-dotenv==1.0.0
+certifi==2023.7.22
+dnspython==2.3.0
+gunicorn==20.1.0
+datetime==4.7.0
