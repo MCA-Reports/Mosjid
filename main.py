@@ -1,294 +1,279 @@
-# main.py
-from fastapi import FastAPI, Depends, HTTPException, status, Request, Form
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, RedirectResponse
-from pydantic import BaseModel, EmailStr
-from typing import List, Optional
-from datetime import datetime, timedelta
-import jWT
-import bcrypt
+from flask import Flask, render_template, request, redirect, session, jsonify
+from flask_pymongo import PyMongo
+from datetime import datetime
+import re
 import os
-from pathlib import Path
-from motor.motor_asyncio import AsyncIOMotorClient
-from contextlib import asynccontextmanager
-from bson import ObjectId
+from dotenv import load_dotenv
 
-# MongoDB setup
-MONGODB_URL = "mongodb+srv://bdkz:bdkz2025@cluster0.yc3hbgc.mongodb.net/mosque_finance?retryWrites=true&w=majority"
-client = AsyncIOMotorClient(MONGODB_URL)
-db = client["mosque_finance"]
+# Load environment variables
+load_dotenv()
 
-# Collections
-users_collection = db["users"]
-members_collection = db["members"]
-contributions_collection = db["contributions"]
-income_collection = db["income"]
-expenses_collection = db["expenses"]
+app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY', 'fallback-secret-key-for-dev-only')
+app.config["MONGO_URI"] = "mongodb+srv://bdkz:bdkz2025@cluster0.yc3hbgc.mongodb.net/mosque_finance?retryWrites=true&w=majority&appName=Cluster0"
+mongo = PyMongo(app)
 
-# JWT Configuration
-SECRET_KEY = "your-secret-key-here"  # Change this in production
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+users_collection = mongo.db.users
+members_collection = mongo.db.members
+contributions_collection = mongo.db.contributions
 
-# Pydantic Models
-class UserCreate(BaseModel):
-    username: str
-    email: EmailStr
-    password: str
-    is_admin: bool = False
+# Utility functions
+def valid_mobile(mobile):
+    return re.match(r'^\+?[\d\s-()]{10,15}$', mobile)
 
-class UserLogin(BaseModel):
-    username: str
-    password: str
-
-class MemberCreate(BaseModel):
-    first_name: str
-    last_name: str
-    mobile_no: str
-    city: str
-    user_type: str
-    fixed_amount: float = 0.0
-
-class ContributionCreate(BaseModel):
-    member_id: str
-    month: str
-    year: int
-    amount: float
-
-class IncomeCreate(BaseModel):
-    description: str
-    amount: float
-
-class ExpenseCreate(BaseModel):
-    description: str
-    amount: float
-
-# FastAPI app
-app = FastAPI(title="Mosque Finance Management", version="1.0.0")
-
-# Security
-security = HTTPBearer()
-
-# Templates and static files
-templates = Jinja2Templates(directory="templates")
-Path("templates").mkdir(exist_ok=True)
-Path("static").mkdir(exist_ok=True)
-
-# Helper functions
-def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8', 'ignore')
-
-def verify_password(password: str, hashed_password: str) -> bool:
-    return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
-
-def create_access_token(data: dict):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    try:
-        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
-        return username
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
-
-async def get_current_user(username: str = Depends(verify_token)):
-    user = await users_collection.find_one({"username": username})
-    if user is None:
-        raise HTTPException(status_code=401, detail="User not found")
-    return user
-
-async def get_admin_user(current_user: dict = Depends(get_current_user)):
-    if not current_user.get("is_admin", False):
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return current_user
-
-# Initialize admin user on startup
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    admin_user = await users_collection.find_one({"username": "admin"})
-    if not admin_user:
-        hashed_password = hash_password("admin123")
-        admin_user = {
+def initialize_admin():
+    """Create admin user if not exists with plain text password"""
+    if not users_collection.find_one({"username": "admin"}):
+        admin_password = os.getenv('ADMIN_INITIAL_PASSWORD', 'Admin@123')
+        users_collection.insert_one({
             "username": "admin",
-            "email": "admin@mosque.com",
-            "hashed_password": hashed_password,
-            "is_admin": True,
+            "password": admin_password,
+            "role": "admin",
             "created_at": datetime.utcnow()
-        }
-        await users_collection.insert_one(admin_user)
-        print("Admin user created: username=admin, password=admin123")
-    yield
+        })
+        print(f"✅ Admin created: admin / {admin_password}")
 
-app.router.lifespan_context = lifespan
+def initialize_indexes():
+    """Initialize database indexes"""
+    try:
+        # Drop existing problematic index if it exists
+        existing_indexes = contributions_collection.index_information()
+        if "member_id_1_month_1_year_1" in existing_indexes:
+            contributions_collection.drop_index("member_id_1_month_1_year_1")
+            print("✅ Dropped existing member_id_1_month_1_year_1 index")
+        
+        # Create new index with proper configuration
+        contributions_collection.create_index(
+            [("member_id", 1), ("month", 1), ("year", 1)],
+            unique=True,
+            partialFilterExpression={
+                "member_id": {"$type": "int"},
+                "month": {"$type": "int"},
+                "year": {"$type": "int"}
+            },
+            name="unique_member_month_year"
+        )
+        print("✅ Created new unique_member_month_year index")
+    except Exception as e:
+        print(f"⚠️ Index initialization error: {str(e)}")
+
+# Initialize admin and indexes on startup
+with app.app_context():
+    initialize_admin()
+    initialize_indexes()
 
 # Routes
-@app.get("/", response_class=HTMLResponse)
-async def root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+@app.route('/')
+def home():
+    if 'username' in session:
+        return redirect('/admin' if session.get('role') == 'admin' else '/member')
+    return render_template('login.html')
 
-@app.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+@app.route('/register')
+def register_page():
+    return render_template('register.html')
 
-@app.get("/register", response_class=HTMLResponse)
-async def register_page(request: Request):
-    return templates.TemplateResponse("register.html", {"request": request})
+@app.route('/member')
+def member_page():
+    if 'username' not in session or session.get('role') != 'member':
+        return redirect('/')
+    return render_template('member_dashboard.html', name=session['username'])
 
-@app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+@app.route('/admin')
+def admin_page():
+    if 'username' not in session or session.get('role') != 'admin':
+        return redirect('/')
+    return render_template('admin_dashboard.html')
 
-@app.get("/admin", response_class=HTMLResponse)
-async def admin_dashboard(request: Request):
-    return templates.TemplateResponse("admin.html", {"request": request})
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect('/')
 
-# Authentication
-@app.post("/api/register")
-async def register_user(user: UserCreate):
-    if await users_collection.find_one({"username": user.username}):
-        raise HTTPException(status_code=400, detail="Username already registered")
-    if await users_collection.find_one({"email": user.email}):
-        raise HTTPException(status_code=400, detail="Email already registered")
+@app.route('/api/login', methods=['POST'])
+def login():
+    if not request.is_json:
+        return jsonify({"detail": "Request must be JSON"}), 400
+
+    data = request.get_json()
+    if not data or 'username' not in data or 'password' not in data:
+        return jsonify({"detail": "Username and password required"}), 400
+
+    try:
+        if data['username'] == "admin":
+            admin = users_collection.find_one({"username": "admin"})
+            if not admin or admin['password'] != data['password']:
+                return jsonify({"detail": "Invalid admin credentials"}), 401
+            
+            session['username'] = 'admin'
+            session['role'] = 'admin'
+            return jsonify({
+                "message": "Admin logged in",
+                "is_admin": True,
+                "username": "admin"
+            })
+
+        member = members_collection.find_one({"mobile_no": data['username']})
+        if not member or member.get('password') != data['password']:
+            return jsonify({"detail": "Invalid member credentials"}), 401
+            
+        session['username'] = member['first_name']
+        session['role'] = 'member'
+        session['member_id'] = member['member_id']
+        return jsonify({
+            "message": "Member logged in",
+            "is_admin": False,
+            "username": member['first_name']
+        })
+
+    except Exception as e:
+        return jsonify({"detail": f"Login error: {str(e)}"}), 500
+
+@app.route('/api/members', methods=['POST'])
+def create_member():
+    data = request.json
     
-    hashed_password = hash_password(user.password)
-    db_user = {
-        "username": user.username,
-        "email": user.email,
-        "hashed_password": hashed_password,
-        "is_admin": user.is_admin,
-        "created_at": datetime.utcnow()
+    required_fields = ['first_name', 'last_name', 'mobile_no', 'password']
+    for field in required_fields:
+        if field not in data or not data[field]:
+            return jsonify({"detail": f"{field.replace('_', ' ').title()} is required"}), 400
+
+    if not valid_mobile(data['mobile_no']):
+        return jsonify({"detail": "Invalid mobile number format"}), 400
+
+    if members_collection.find_one({"mobile_no": data['mobile_no']}):
+        return jsonify({"detail": "Mobile number already registered"}), 400
+
+    counter = mongo.db.counters.find_one_and_update(
+        {"_id": "member_id"},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=True
+    )
+    member_id = counter['seq']
+
+    member_data = {
+        "member_id": member_id,
+        "first_name": data['first_name'],
+        "last_name": data['last_name'],
+        "mobile_no": data['mobile_no'],
+        "password": data['password'],
+        "city": data.get('city', ''),
+        "fixed_amount": float(data.get('fixed_amount', 0)),
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
     }
-    await users_collection.insert_one(db_user)
-    return {"message": "User registered successfully"}
 
-@app.post("/api/login")
-async def login(user: UserLogin):
-    db_user = await users_collection.find_one({"username": user.username})
-    if not db_user or not verify_password(user.password, db_user["hashed_password"]):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    access_token = create_access_token(data={"sub": db_user["username"]})
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "is_admin": db_user.get("is_admin", False)
-    }
+    try:
+        members_collection.insert_one(member_data)
+        return jsonify({
+            "message": "Member created successfully",
+            "member_id": member_id
+        }), 201
+    except Exception as e:
+        return jsonify({"detail": f"Database error: {str(e)}"}), 500
 
-# Members
-@app.post("/api/members")
-async def create_member(member: MemberCreate, current_user: dict = Depends(get_current_user)):
-    if await members_collection.find_one({"mobile_no": member.mobile_no}):
-        raise HTTPException(status_code=400, detail="Mobile number already registered")
-    
-    db_member = member.dict()
-    db_member["created_at"] = datetime.utcnow()
-    result = await members_collection.insert_one(db_member)
-    return {"message": "Member registered successfully!", "member_id": str(result.inserted_id)}
+@app.route('/api/members', methods=['GET'])
+def get_members():
+    try:
+        members = list(members_collection.find({}, {"_id": 0, "password": 0}))
+        return jsonify(members), 200
+    except Exception as e:
+        return jsonify({"detail": f"Database error: {str(e)}"}), 500
 
-@app.get("/api/members")
-async def get_members(current_user: dict = Depends(get_current_user)):
-    members = []
-    async for member in members_collection.find():
-        members.append(member)
-    return members
+@app.route('/api/contributions', methods=['POST'])
+def create_contribution():
+    if 'username' not in session:
+        return jsonify({"detail": "Unauthorized"}), 401
 
-@app.get("/api/members/{member_id}")
-async def get_member(member_id: str, current_user: dict = Depends(get_current_user)):
-    member = await members_collection.find_one({"_id": ObjectId(member_id)})
-    if not member:
-        raise HTTPException(status_code=404, detail="Member not found")
-    
-    contributions = []
-    async for contribution in contributions_collection.find({"member_id": member_id}):
-        contributions.append(contribution)
-    
-    return {"member": member, "contributions": contributions}
+    data = request.json
+    required_fields = ['amount', 'payment_method', 'purpose', 'member_id']
+    for field in required_fields:
+        if field not in data or data[field] is None:
+            return jsonify({"detail": f"{field.replace('_', ' ').title()} is required"}), 400
 
-# Contributions
-@app.post("/api/contributions")
-async def create_contribution(contribution: ContributionCreate, current_user: dict = Depends(get_current_user)):
-    member = await members_collection.find_one({"_id": ObjectId(contribution.member_id)})
-    if not member:
-        raise HTTPException(status_code=404, detail="Member not found")
-    
-    db_contribution = contribution.dict()
-    db_contribution["member_id"] = str(member["_id"])  # ensure stored as string
-    db_contribution["created_at"] = datetime.utcnow()
-    await contributions_collection.insert_one(db_contribution)
-    return {"message": "Contribution added successfully!"}
+    try:
+        now = datetime.utcnow()
 
-@app.get("/api/contributions")
-async def get_contributions(current_user: dict = Depends(get_current_user)):
-    contributions = []
-    async for contribution in contributions_collection.find():
-        contributions.append(contribution)
-    return contributions
+        # Generate unique serial transaction ID
+        counter = mongo.db.counters.find_one_and_update(
+            {"_id": "transaction_id"},
+            {"$inc": {"seq": 1}},
+            upsert=True,
+            return_document=True
+        )
+        transaction_id = f"TXN-{counter['seq']}"
 
-# Income & expenses
-@app.post("/api/income")
-async def create_income(income: IncomeCreate, current_user: dict = Depends(get_admin_user)):
-    db_income = income.dict()
-    db_income["date"] = datetime.utcnow()
-    db_income["added_by"] = current_user["_id"]
-    await income_collection.insert_one(db_income)
-    return {"message": "Income added successfully!"}
+        contribution_data = {
+            "transaction_id": transaction_id,
+            "member_id": int(data['member_id']),
+            "amount": float(data['amount']),
+            "payment_method": data['payment_method'],
+            "purpose": data['purpose'],
+            "date": now,
+            "month": now.month,
+            "year": now.year,
+            "recorded_by": session['username']
+        }
 
-@app.post("/api/expenses")
-async def create_expense(expense: ExpenseCreate, current_user: dict = Depends(get_admin_user)):
-    db_expense = expense.dict()
-    db_expense["date"] = datetime.utcnow()
-    db_expense["added_by"] = current_user["_id"]
-    await expenses_collection.insert_one(db_expense)
-    return {"message": "Expense added successfully!"}
+        contributions_collection.insert_one(contribution_data)
+        return jsonify({
+            "message": "Contribution recorded successfully",
+            "transaction_id": transaction_id
+        }), 201
+    except Exception as e:
+        return jsonify({"detail": f"Error recording contribution: {str(e)}"}), 500
 
-@app.get("/api/income")
-async def get_income(current_user: dict = Depends(get_current_user)):
-    income = []
-    async for item in income_collection.find():
-        income.append(item)
-    return income
 
-@app.get("/api/expenses")
-async def get_expenses(current_user: dict = Depends(get_current_user)):
-    expenses = []
-    async for expense in expenses_collection.find():
-        expenses.append(expense)
-    return expenses
+@app.route('/api/contributions', methods=['GET'])
+def get_contributions():
+    if 'username' not in session:
+        return jsonify({"detail": "Unauthorized"}), 401
 
-# Dashboard
-@app.get("/api/dashboard")
-async def get_dashboard_data(current_user: dict = Depends(get_current_user)):
-    total_members = await members_collection.count_documents({})
-    pipeline = [{"$group": {"_id": None, "total": {"$sum": "$amount"}}}]
-    
-    total_contributions = await contributions_collection.aggregate(pipeline).to_list(1)
-    total_income = await income_collection.aggregate(pipeline).to_list(1)
-    total_expenses = await expenses_collection.aggregate(pipeline).to_list(1)
-    
-    recent_contributions = []
-    async for contribution in contributions_collection.find().sort("created_at", -1).limit(10):
-        recent_contributions.append(contribution)
-    
-    return {
-        "total_members": total_members,
-        "total_contributions": total_contributions[0]["total"] if total_contributions else 0,
-        "total_income": total_income[0]["total"] if total_income else 0,
-        "total_expenses": total_expenses[0]["total"] if total_expenses else 0,
-        "net_balance": (total_contributions[0]["total"] if total_contributions else 0)
-                        + (total_income[0]["total"] if total_income else 0)
-                        - (total_expenses[0]["total"] if total_expenses else 0),
-        "recent_contributions": recent_contributions
-    }
+    try:
+        # Get query parameters
+        member_id = request.args.get('member_id')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        query = {}
+        
+        if member_id:
+            query["member_id"] = int(member_id)
+            
+        if start_date and end_date:
+            query["date"] = {
+                "$gte": datetime.strptime(start_date, "%Y-%m-%d"),
+                "$lte": datetime.strptime(end_date, "%Y-%m-%d")
+            }
+        elif start_date:
+            query["date"] = {"$gte": datetime.strptime(start_date, "%Y-%m-%d")}
+        elif end_date:
+            query["date"] = {"$lte": datetime.strptime(end_date, "%Y-%m-%d")}
+
+        # Pagination
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 10))
+        skip = (page - 1) * per_page
+        
+        total = contributions_collection.count_documents(query)
+        contributions = list(contributions_collection.find(
+            query,
+            {"_id": 0}
+        ).sort("date", -1).skip(skip).limit(per_page))
+        
+        return jsonify({
+            "data": contributions,
+            "pagination": {
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "total_pages": (total + per_page - 1) // per_page
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"detail": f"Error retrieving contributions: {str(e)}"}), 500
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=5000)
+    app.run(host="0.0.0.0", port=int(os.getenv('PORT', 5000)), debug=os.getenv('FLASK_DEBUG', 'False') == 'True')

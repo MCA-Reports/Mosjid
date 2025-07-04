@@ -1,54 +1,98 @@
 {% extends "base.html" %}
-{% block title %}Register - Mosque Finance{% endblock %}
+{% block title %}Register{% endblock %}
 {% block content %}
 <div class="container">
     <div class="row justify-content-center">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-body p-5">
-                    <h2 class="text-center mb-4"><i class="fas fa-user-plus"></i> Register</h2>
-                    <form id="registerForm">
-                        <div class="mb-3"><label for="username" class="form-label">Username</label>
-                            <input type="text" class="form-control" id="username" required></div>
-                        <div class="mb-3"><label for="email" class="form-label">Email</label>
-                            <input type="email" class="form-control" id="email" required></div>
-                        <div class="mb-3"><label for="password" class="form-label">Password</label>
-                            <input type="password" class="form-control" id="password" required></div>
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="isAdmin">
-                            <label class="form-check-label" for="isAdmin">Admin User</label></div>
-                        <button type="submit" class="btn btn-primary w-100"><i class="fas fa-user-plus"></i> Register</button>
-                    </form>
-                    <div class="text-center mt-3"><a href="/login" class="text-decoration-none">Already have an account? Login</a></div>
+        <div class="col-md-8">
+            <div class="card p-4">
+                <h2 class="text-center mb-4"><i class="fas fa-user-plus"></i> Register</h2>
+                <form id="registerForm">
+                    <div class="row">
+                        <div class="col">
+                            <input type="text" class="form-control mb-3" id="first_name" placeholder="First Name" required>
+                        </div>
+                        <div class="col">
+                            <input type="text" class="form-control mb-3" id="last_name" placeholder="Last Name" required>
+                        </div>
+                    </div>
+                    <input type="text" class="form-control mb-3" id="mobile_no" placeholder="Mobile No" required>
+                    <input type="password" class="form-control mb-3" id="password" placeholder="Password" required>
+                    <input type="text" class="form-control mb-3" id="city" placeholder="City">
+                    <input type="number" class="form-control mb-3" id="fixed_amount" placeholder="Fixed Amount" value="0" step="0.01" min="0">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-user-plus"></i> Register
+                    </button>
+                </form>
+                <div class="text-center mt-3">
+                    <p>Already have an account? <a href="/" class="text-primary">Login here</a></p>
                 </div>
             </div>
         </div>
     </div>
 </div>
 {% endblock %}
+
 {% block scripts %}
 <script>
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const username = document.getElementById('username').value;
-    const email = document.getElementById('email').value;
+    
+    // Get form values
+    const firstName = document.getElementById('first_name').value.trim();
+    const lastName = document.getElementById('last_name').value.trim();
+    const mobileNo = document.getElementById('mobile_no').value.trim();
     const password = document.getElementById('password').value;
-    const is_admin = document.getElementById('isAdmin').checked;
+    const city = document.getElementById('city').value.trim();
+    const fixedAmount = parseFloat(document.getElementById('fixed_amount').value) || 0;
+    
+    // Basic validation
+    if (!firstName || !lastName || !mobileNo || !password) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    // Mobile number validation (basic)
+    if (!/^\+?[\d\s-()]{10,15}$/.test(mobileNo)) {
+        alert('Please enter a valid mobile number');
+        return;
+    }
+    
+    // Password validation
+    if (password.length < 6) {
+        alert('Password must be at least 6 characters long');
+        return;
+    }
+    
+    const payload = {
+        first_name: firstName,
+        last_name: lastName,
+        mobile_no: mobileNo,
+        password: password,
+        city: city,
+        fixed_amount: fixedAmount
+    };
+    
     try {
-        const response = await fetch('/api/register', {
+        const res = await fetch('/api/members', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, email, password, is_admin })
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
         });
-        const data = await response.json();
-        if (response.ok) {
-            alert('Registration successful! Please login.');
-            window.location.href = '/login';
-        } else {
-            alert(data.detail || 'Registration failed');
+        
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.detail || 'Registration failed');
         }
+        
+        const data = await res.json();
+        alert(`🎉 Registered successfully! Your Member ID is: ${data.member_id}`);
+        
+        // Redirect to login page
+        window.location.href = '/';
+        
     } catch (error) {
-        alert('Registration failed: ' + error.message);
+        console.error('Registration error:', error);
+        alert(error.message || 'Registration failed. Please try again.');
     }
 });
 </script>

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Member Dashboard{% endblock %}
+{% block content %}
+<div class="container">
+    <h1 class="text-white mb-4"><i class="fas fa-tachometer-alt"></i> Welcome <span id="welcomeName"></span>!</h1>
+    <a href="/logout" class="btn btn-outline-light">
+    <i class="fas fa-sign-out-alt"></i> Logout
+</a>
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5>Your Summary This Year</h5>
+            Total Given: <strong id="totalGiven">0</strong><br>
+            Due This Year: <strong id="dueAmount">0</strong>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body">
+            <h5>Donation History</h5>
+            <table class="table">
+                <thead><tr><th>Date</th><th>Month</th><th>Description</th><th>Amount</th></tr></thead>
+                <tbody id="donationHistory"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function loadMember() {
+    const username = localStorage.getItem('username');
+    const res = await fetch(`/api/members?search=${username}`, { headers: getAuthHeaders() });
+    const data = await res.json();
+    if (!data.members.length) return document.getElementById('welcomeName').innerText=username;
+    const member = data.members[0];
+    document.getElementById('welcomeName').innerText = `${member.first_name} ${member.last_name}`;
+    const contribRes = await fetch(`/api/members/${member._id}`, { headers: getAuthHeaders() });
+    const contribData = await contribRes.json();
+    let totalThisYear=0, year=new Date().getFullYear();
+    contribData.contributions.forEach(c => {
+        if(c.year===year) totalThisYear+=c.amount;
+        document.getElementById('donationHistory').innerHTML+=`<tr><td>${new Date(c.created_at).toLocaleDateString()}</td><td>${c.month}</td><td>${c.description||'General'}</td><td>${c.amount}</td></tr>`;
+    });
+    document.getElementById('totalGiven').innerText=totalThisYear;
+    document.getElementById('dueAmount').innerText=((member.fixed_amount||0)*12 - totalThisYear).toFixed(2);
+}
+window.onload=loadMember;
+</script>
+{% endblock %}

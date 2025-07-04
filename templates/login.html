@@ -27,6 +27,7 @@
     </div>
 </div>
 {% endblock %}
+
 {% block scripts %}
 <script>
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -43,7 +44,13 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         if (response.ok) {
             localStorage.setItem('access_token', data.access_token);
             localStorage.setItem('is_admin', data.is_admin);
-            window.location.href = '/dashboard';
+            localStorage.setItem('username', data.username);
+
+            if (data.is_admin) {
+                window.location.href = '/admin';
+            } else {
+                window.location.href = '/member';
+            }
         } else {
             alert(data.detail || 'Login failed');
         }
@@ -53,3 +60,4 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 });
 </script>
 {% endblock %}
+
