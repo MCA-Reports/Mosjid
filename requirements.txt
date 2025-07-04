@@ -3,3 +3,4 @@ dotenv
 flask_pymongo
 datetime
 gunicorn
+pymongo_certifi
