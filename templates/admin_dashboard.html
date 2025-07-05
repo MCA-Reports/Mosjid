@@ -466,7 +466,7 @@
                             <div class="stat-icon" style="background: #667eea;">👥</div>
                         </div>
                         <div class="stat-value" id="total-members">0</div>
-                        <div class="stat-change">+12% from last month</div>
+                      
                     </div>
                     
                     <div class="stat-card">
@@ -475,7 +475,7 @@
                             <div class="stat-icon" style="background: #48bb78;">💰</div>
                         </div>
                         <div class="stat-value" id="this-month">$0</div>
-                        <div class="stat-change">+8% from last month</div>
+                      
                     </div>
                     
                     <div class="stat-card">
@@ -484,7 +484,7 @@
                             <div class="stat-icon" style="background: #ed8936;">📈</div>
                         </div>
                         <div class="stat-value" id="this-year">$0</div>
-                        <div class="stat-change">+15% from last year</div>
+                      
                     </div>
                     
                     <div class="stat-card">
@@ -576,9 +576,11 @@
                                 <tr>
                                     <th>Transaction ID</th>
                                     <th>Member ID</th>
+                                    <th>Name</th>
                                     <th>Amount</th>
                                     <th>Method</th>
                                     <th>Purpose</th>
+                                    <th>Month</th>
                                     <th>Date</th>
                                 </tr>
                             </thead>
@@ -698,12 +700,32 @@
                     <select id="purpose" required>
                         <option value="">Select Purpose</option>
                         <option value="monthly_contribution">Monthly Contribution</option>
+                        <option value="jumma">Jumma salat</option>
                         <option value="donation">Donation</option>
                         <option value="zakat">Zakat</option>
                         <option value="sadaqah">Sadaqah</option>
                         <option value="special_event">Special Event</option>
                     </select>
                 </div>
+                <div class="form-group" id="month-select-group" style="display: none;">
+    <label for="contribution_month">Month</label>
+    <select id="contribution_month">
+        <option value="">Select Month</option>
+        <option value="1">January</option>
+        <option value="2">February</option>
+        <option value="3">March</option>
+        <option value="4">April</option>
+        <option value="5">May</option>
+        <option value="6">June</option>
+        <option value="7">July</option>
+        <option value="8">August</option>
+        <option value="9">September</option>
+        <option value="10">October</option>
+        <option value="11">November</option>
+        <option value="12">December</option>
+    </select>
+</div>
+
                 
                 <div class="form-group">
                     <button type="submit" class="btn btn-primary">Save Contribution</button>
@@ -713,448 +735,228 @@
         </div>
     </div>
 
-    <script>
-        // Global variables
-        let currentPage = 1;
-        let contributionsChart = null;
-        let monthlyChart = null;
-        let paymentChart = null;
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadStats();
+    loadMembers();
+    loadContributions();
+    initializeCharts();
+    setupNavigation();
+});
 
-        // Initialize dashboard
-        document.addEventListener('DOMContentLoaded', function() {
-            loadStats();
-            loadMembers();
-            loadContributions();
-            initializeCharts();
-            setupNavigation();
-        });
+let currentPage = 1;
+let contributionsChart = null;
+let monthlyChart = null;
+let paymentChart = null;
+let membersMap = {};
 
-        // Navigation
-        function setupNavigation() {
-            document.querySelectorAll('.nav-link').forEach(link => {
-                link.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    const section = this.getAttribute('data-section');
-                    switchSection(section);
-                    
-                    // Update active nav
-                    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-                    this.classList.add('active');
-                });
-            });
-        }
-
-        function switchSection(section) {
-            // Hide all sections
-            document.querySelectorAll('.content-section').forEach(s => s.style.display = 'none');
-            
-            // Show selected section
-            document.getElementById(section + '-section').style.display = 'block';
-            
-            // Update page title
-            const titles = {
-                dashboard: 'Dashboard Overview',
-                members: 'Members Management',
-                contributions: 'Contributions Management',
-                reports: 'Financial Reports'
-            };
-            document.getElementById('page-title').textContent = titles[section];
-        }
-
-        // Load statistics
-        async function loadStats() {
-            try {
-                const response = await fetch('/api/stats');
-                const data = await response.json();
-                
-                document.getElementById('total-members').textContent = data.total_members || 0;
-                document.getElementById('this-month').textContent = '$' + (data.this_month || 0).toFixed(2);
-                document.getElementById('this-year').textContent = '$' + (data.this_year || 0).toFixed(2);
-                document.getElementById('total-collected').textContent = '$' + (data.total_collected || 0).toFixed(2);
-            } catch (error) {
-                console.error('Error loading stats:', error);
-                showAlert('Error loading statistics', 'error');
-            }
-        }
-
-        // Load members
-        async function loadMembers() {
-            try {
-                const response = await fetch('/api/members');
-                const members = await response.json();
-                
-                const tbody = document.getElementById('members-tbody');
-                tbody.innerHTML = '';
-                
-                members.forEach(member => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${member.member_id}</td>
-                        <td>${member.first_name} ${member.last_name}</td>
-                        <td>${member.mobile_no}</td>
-                        <td>${member.city || 'N/A'}</td>
-                        <td>$${member.fixed_amount.toFixed(2)}</td>
-                        <td>
-                            <button class="btn btn-secondary" onclick="editMember(${member.member_id})">Edit</button>
-                        </td>
-                    `;
-                    tbody.appendChild(row);
-                });
-                
-                // Populate member filters
-                populateMemberFilters(members);
-            } catch (error) {
-                console.error('Error loading members:', error);
-                showAlert('Error loading members', 'error');
-            }
-        }
-
-        function populateMemberFilters(members) {
-            const filterSelect = document.getElementById('member-filter');
-            const contributionSelect = document.getElementById('contribution_member_id');
-            
-            filterSelect.innerHTML = '<option value="">All Members</option>';
-            contributionSelect.innerHTML = '<option value="">Select Member</option>';
-            
-            members.forEach(member => {
-                const option1 = document.createElement('option');
-                option1.value = member.member_id;
-                option1.textContent = `${member.first_name} ${member.last_name} (${member.member_id})`;
-                filterSelect.appendChild(option1);
-                
-                const option2 = document.createElement('option');
-                option2.value = member.member_id;
-                option2.textContent = `${member.first_name} ${member.last_name} (${member.member_id})`;
-                contributionSelect.appendChild(option2);
-            });
-        }
-
-        // Load contributions
-        async function loadContributions(page = 1, filters = {}) {
-            try {
-                const params = new URLSearchParams({
-                    page: page,
-                    per_page: 10,
-                    ...filters
-                });
-                
-                const response = await fetch(`/api/contributions?${params}`);
-                const data = await response.json();
-                
-                const tbody = document.getElementById('contributions-tbody');
-                tbody.innerHTML = '';
-                
-                data.data.forEach(contribution => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${contribution.transaction_id}</td>
-                        <td>${contribution.member_id}</td>
-                        <td>$${contribution.amount.toFixed(2)}</td>
-                        <td>${contribution.payment_method}</td>
-                        <td>${contribution.purpose}</td>
-                        <td>${new Date(contribution.date).toLocaleDateString()}</td>
-                    `;
-                    tbody.appendChild(row);
-                });
-                
-                // Update pagination
-                updatePagination(data.pagination);
-            } catch (error) {
-                console.error('Error loading contributions:', error);
-                showAlert('Error loading contributions', 'error');
-            }
-        }
-
-        function updatePagination(pagination) {
-            const container = document.getElementById('contributions-pagination');
-            container.innerHTML = '';
-            
-            for (let i = 1; i <= pagination.total_pages; i++) {
-                const button = document.createElement('button');
-                button.textContent = i;
-                button.className = i === pagination.page ? 'active' : '';
-                button.onclick = () => loadContributions(i);
-                container.appendChild(button);
-            }
-        }
-
-        // Charts
-        function initializeCharts() {
-            // Contributions Chart
-            const ctx1 = document.getElementById('contributionsChart').getContext('2d');
-            contributionsChart = new Chart(ctx1, {
-                type: 'line',
-                data: {
-                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-                    datasets: [{
-                        label: 'Monthly Contributions',
-                        data: [12000, 19000, 15000, 25000, 22000, 30000],
-                        borderColor: '#667eea',
-                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                        tension: 0.4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    }
-                }
-            });
-
-            // Monthly Chart
-            const ctx2 = document.getElementById('monthlyChart').getContext('2d');
-            monthlyChart = new Chart(ctx2, {
-                type: 'bar',
-                data: {
-                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-                    datasets: [{
-                        label: 'Monthly Breakdown',
-                        data: [12000, 19000, 15000, 25000, 22000, 30000],
-                        backgroundColor: '#667eea'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    }
-                }
-            });
-
-            // Payment Methods Chart
-            const ctx3 = document.getElementById('paymentChart').getContext('2d');
-            paymentChart = new Chart(ctx3, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Cash', 'Card', 'Bank Transfer', 'Online'],
-                    datasets: [{
-                        data: [45, 25, 20, 10],
-                        backgroundColor: ['#667eea', '#48bb78', '#ed8936', '#38b2ac']
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
-                }
-            });
-        }
-
-        // Modal functions
-        function openMemberModal() {
-            document.getElementById('memberModal').style.display = 'block';
-            document.getElementById('member-form').reset();
-            document.getElementById('member-modal-title').textContent = 'Add New Member';
-        }
-
-        function closeMemberModal() {
-            document.getElementById('memberModal').style.display = 'none';
-        }
-
-        function openContributionModal() {
-            document.getElementById('contributionModal').style.display = 'block';
-            document.getElementById('contribution-form').reset();
-        }
-
-        function closeContributionModal() {
-            document.getElementById('contributionModal').style.display = 'none';
-        }
-
-        // Form submissions
-        document.getElementById('member-form').addEventListener('submit', async function(e) {
+function setupNavigation() {
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', function(e) {
             e.preventDefault();
-            
-            const formData = {
-                first_name: document.getElementById('first_name').value,
-                last_name: document.getElementById('last_name').value,
-                mobile_no: document.getElementById('mobile_no').value,
-                password: document.getElementById('password').value,
-                city: document.getElementById('city').value,
-                fixed_amount: parseFloat(document.getElementById('fixed_amount').value) || 0
-            };
+            const section = this.getAttribute('data-section');
+            switchSection(section);
 
-            try {
-                const response = await fetch('/api/members', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(formData)
-                });
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+}
 
-                const result = await response.json();
+function switchSection(section) {
+    document.querySelectorAll('.content-section').forEach(s => s.style.display = 'none');
+    document.getElementById(section + '-section').style.display = 'block';
 
-                if (response.ok) {
-                    showAlert('Member created successfully!', 'success');
-                    closeMemberModal();
-                    loadMembers();
-                    loadStats();
-                } else {
-                    showAlert(result.detail || 'Error creating member', 'error');
-                }
-            } catch (error) {
-                console.error('Error creating member:', error);
-                showAlert('Error creating member', 'error');
-            }
+    const titles = {
+        dashboard: 'Dashboard Overview',
+        members: 'Members Management',
+        contributions: 'Contributions Management',
+        reports: 'Financial Reports'
+    };
+    document.getElementById('page-title').textContent = titles[section];
+}
+
+async function loadStats() {
+    try {
+        const response = await fetch('/api/stats');
+        if (!response.ok) throw new Error("Failed to load stats");
+        const data = await response.json();
+
+        document.getElementById('total-members').textContent = data.total_members || 0;
+        document.getElementById('this-month').textContent = '$' + (data.this_month || 0).toFixed(2);
+        document.getElementById('this-year').textContent = '$' + (data.this_year || 0).toFixed(2);
+        document.getElementById('total-collected').textContent = '$' + (data.total_collected || 0).toFixed(2);
+    } catch (error) {
+        console.error('Error loading stats:', error);
+        showAlert('Error loading statistics', 'error');
+    }
+}
+
+async function loadMembers() {
+    try {
+        const response = await fetch('/api/members');
+        if (!response.ok) throw new Error("Failed to load members");
+        const members = await response.json();
+
+        membersMap = {};
+        members.forEach(member => {
+            membersMap[member.member_id] = member;
         });
 
-        document.getElementById('contribution-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = {
-                member_id: parseInt(document.getElementById('contribution_member_id').value),
-                amount: parseFloat(document.getElementById('amount').value),
-                payment_method: document.getElementById('payment_method').value,
-                purpose: document.getElementById('purpose').value,
-                recorded_by: 'admin'
-            };
+        const tbody = document.getElementById('members-tbody');
+        tbody.innerHTML = '';
 
-            try {
-                const response = await fetch('/api/contributions', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(formData)
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    showAlert('Contribution recorded successfully!', 'success');
-                    closeContributionModal();
-                    loadContributions();
-                    loadStats();
-                } else {
-                    showAlert(result.detail || 'Error recording contribution', 'error');
-                }
-            } catch (error) {
-                console.error('Error recording contribution:', error);
-                showAlert('Error recording contribution', 'error');
-            }
+        members.forEach(member => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${member.member_id}</td>
+                <td>${member.first_name} ${member.last_name}</td>
+                <td>${member.mobile_no}</td>
+                <td>${member.city || 'N/A'}</td>
+                <td>$${member.fixed_amount.toFixed(2)}</td>
+                <td><button class="btn btn-secondary" onclick="editMember(${member.member_id})">Edit</button></td>
+            `;
+            tbody.appendChild(row);
         });
 
-        // Search and filter functions
-        function searchMembers() {
-            const searchTerm = document.getElementById('member-search').value.toLowerCase();
-            const rows = document.querySelectorAll('#members-tbody tr');
-            
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchTerm) ? '' : 'none';
-            });
-        }
+        populateMemberFilters(members);
+    } catch (error) {
+        console.error('Error loading members:', error);
+        showAlert('Error loading members', 'error');
+    }
+}
 
-        function filterContributions() {
-            const startDate = document.getElementById('start-date').value;
-            const endDate = document.getElementById('end-date').value;
-            const memberId = document.getElementById('member-filter').value;
-            
-            const filters = {};
-            if (startDate) filters.start_date = startDate;
-            if (endDate) filters.end_date = endDate;
-            if (memberId) filters.member_id = memberId;
-            
-            loadContributions(1, filters);
-        }
+function populateMemberFilters(members) {
+    const filterSelect = document.getElementById('member-filter');
+    const contributionSelect = document.getElementById('contribution_member_id');
 
-        // Utility functions
-        function showAlert(message, type) {
-            const alertsContainer = document.getElementById('alerts');
-            const alertDiv = document.createElement('div');
-            alertDiv.className = `alert alert-${type}`;
-            alertDiv.textContent = message;
-            
-            alertsContainer.appendChild(alertDiv);
-            
-            setTimeout(() => {
-                alertDiv.remove();
-            }, 5000);
-        }
+    filterSelect.innerHTML = '<option value="">All Members</option>';
+    contributionSelect.innerHTML = '<option value="">Select Member</option>';
 
-        function editMember(memberId) {
-            // This would open the modal with member data pre-filled
-            showAlert('Edit functionality would be implemented here', 'info');
-        }
+    members.forEach(member => {
+        const option1 = document.createElement('option');
+        option1.value = member.member_id;
+        option1.textContent = `${member.first_name} ${member.last_name} (${member.member_id})`;
+        filterSelect.appendChild(option1);
 
-        function exportReport() {
-            // This would generate and download a report
-            showAlert('Export functionality would be implemented here', 'info');
-        }
+        const option2 = document.createElement('option');
+        option2.value = member.member_id;
+        option2.textContent = `${member.first_name} ${member.last_name} (${member.member_id})`;
+        contributionSelect.appendChild(option2);
+    });
+}
 
-        // Close modals when clicking outside
-        window.onclick = function(event) {
-            const memberModal = document.getElementById('memberModal');
-            const contributionModal = document.getElementById('contributionModal');
-            
-            if (event.target === memberModal) {
-                closeMemberModal();
+async function loadContributions(page = 1, filters = {}) {
+    try {
+        const params = new URLSearchParams({ page: page, per_page: 10, ...filters });
+        const response = await fetch(`/api/contributions?${params}`);
+        if (!response.ok) throw new Error("Failed to load contributions");
+        const data = await response.json();
+
+        const tbody = document.getElementById('contributions-tbody');
+        tbody.innerHTML = '';
+
+        data.data.forEach(contribution => {
+            let dateValue = contribution.date;
+            if (dateValue && typeof dateValue === 'object' && '$date' in dateValue) {
+                dateValue = dateValue.$date;
             }
-            if (event.target === contributionModal) {
-                closeContributionModal();
-            }
-        }
+            const formattedDate = new Date(dateValue).toLocaleDateString();
 
-        // Real-time updates simulation
-        setInterval(() => {
-            const now = new Date();
-            const timeString = now.toLocaleTimeString();
-            
-            // Update recent activity (simulated)
-            const recentActivity = document.getElementById('recent-activity');
-            if (recentActivity && Math.random() > 0.7) {
-                const activities = [
-                    'New member registered',
-                    'Contribution received',
-                    'Monthly report generated',
-                    'Payment processed'
-                ];
-                const randomActivity = activities[Math.floor(Math.random() * activities.length)];
-                recentActivity.innerHTML = `
-                    <div style="margin-bottom: 10px; padding: 10px; background: #f7fafc; border-radius: 5px; border-left: 3px solid #667eea;">
-                        <strong>${timeString}</strong><br>
-                        ${randomActivity}
-                    </div>
-                ` + recentActivity.innerHTML;
-                
-                // Keep only last 5 activities
-                const activities_divs = recentActivity.querySelectorAll('div');
-                if (activities_divs.length > 5) {
-                    activities_divs[activities_divs.length - 1].remove();
-                }
-            }
-        }, 30000); // Update every 30 seconds
+            const memberInfo = membersMap[contribution.member_id];
+            const memberName = memberInfo ? `${memberInfo.first_name} ${memberInfo.last_name}` : `ID ${contribution.member_id}`;
 
-        // Keyboard shortcuts
-        document.addEventListener('keydown', function(e) {
-            if (e.ctrlKey || e.metaKey) {
-                switch(e.key) {
-                    case 'm':
-                        e.preventDefault();
-                        openMemberModal();
-                        break;
-                    case 'c':
-                        e.preventDefault();
-                        openContributionModal();
-                        break;
-                    case 'r':
-                        e.preventDefault();
-                        loadStats();
-                        loadMembers();
-                        loadContributions();
-                        showAlert('Data refreshed', 'success');
-                        break;
-                }
-            }
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${contribution.transaction_id}</td>
+                <td>${contribution.member_id}</td>
+                <td>${memberName}</td>
+                <td>$${contribution.amount.toFixed(2)}</td>
+                <td>${contribution.payment_method}</td>
+                <td>${contribution.purpose}</td>
+                <td>${contribution.month || ''}</td>
+                <td>${formattedDate}</td>
+            `;
+            tbody.appendChild(row);
         });
-    </script>
+
+        updatePagination(data.pagination);
+    } catch (error) {
+        console.error('Error loading contributions:', error);
+        showAlert('Error loading contributions', 'error');
+    }
+}
+
+function updatePagination(pagination) {
+    const container = document.getElementById('contributions-pagination');
+    container.innerHTML = '';
+
+    for (let i = 1; i <= pagination.total_pages; i++) {
+        const button = document.createElement('button');
+        button.textContent = i;
+        button.className = i === pagination.page ? 'active' : '';
+        button.onclick = () => loadContributions(i);
+        container.appendChild(button);
+    }
+}
+
+document.getElementById('purpose').addEventListener('change', function() {
+    const monthSelectGroup = document.getElementById('month-select-group');
+    monthSelectGroup.style.display = this.value === 'monthly_contribution' ? 'block' : 'none';
+});
+
+
+async function initializeCharts() {
+    try {
+        // Monthly Chart
+        const monthRes = await fetch('/api/stats/monthly_contributions');
+        if (!monthRes.ok) throw new Error("Failed to load monthly contributions");
+        const monthData = await monthRes.json();
+
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthlyContributions = monthData.monthly_contributions || [];
+
+        const ctx2 = document.getElementById('monthlyChart').getContext('2d');
+        monthlyChart = new Chart(ctx2, {
+            type: 'bar',
+            data: {
+                labels: months,
+                datasets: [{
+                    label: 'Monthly Breakdown',
+                    data: monthlyContributions,
+                    backgroundColor: '#667eea'
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+
+        // Payment Methods Chart
+        const payRes = await fetch('/api/stats/payment_methods');
+        if (!payRes.ok) throw new Error("Failed to load payment stats");
+        const payData = await payRes.json();
+
+        const paymentLabels = payData.labels || [];
+        const paymentTotals = payData.totals || [];
+        const paymentColors = ['#667eea', '#48bb78', '#ed8936', '#38b2ac', '#e53e3e', '#805ad5'];
+
+        const ctx3 = document.getElementById('paymentChart').getContext('2d');
+        paymentChart = new Chart(ctx3, {
+            type: 'doughnut',
+            data: {
+                labels: paymentLabels,
+                datasets: [{
+                    data: paymentTotals,
+                    backgroundColor: paymentColors.slice(0, paymentLabels.length)
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        });
+    } catch (error) {
+        console.error('Error loading charts:', error);
+        showAlert('Error loading charts', 'error');
+    }
+}
+</script>
+
 </body>
 </html>

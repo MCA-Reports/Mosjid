@@ -190,9 +190,26 @@ def create_contribution():
             return jsonify({"detail": f"{field.replace('_', ' ').title()} is required"}), 400
 
     try:
+        # Default date
         now = datetime.utcnow()
+        # If custom date provided (for backdated)
+        date_str = data.get("date")
+        if date_str:
+            try:
+                now = datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                return jsonify({"detail": "Invalid date format. Use YYYY-MM-DD."}), 400
 
-        # Generate unique serial transaction ID
+        # Handle optional month (for monthly contribution)
+        month = data.get("month")
+        if month:
+            month = int(month)
+        else:
+            month = now.month
+
+        year = now.year
+
+        # Generate transaction ID
         counter = mongo.db.counters.find_one_and_update(
             {"_id": "transaction_id"},
             {"$inc": {"seq": 1}},
@@ -208,8 +225,8 @@ def create_contribution():
             "payment_method": data['payment_method'],
             "purpose": data['purpose'],
             "date": now,
-            "month": now.month,
-            "year": now.year,
+            "month": month,
+            "year": year,
             "recorded_by": data.get("recorded_by", "system")
         }
 
@@ -218,8 +235,10 @@ def create_contribution():
             "message": "Contribution recorded successfully",
             "transaction_id": transaction_id
         }), 201
+
     except Exception as e:
         return jsonify({"detail": f"Error recording contribution: {str(e)}"}), 500
+
 
 
 @app.route('/api/contributions', methods=['GET'])
@@ -310,6 +329,54 @@ def get_stats():
         "this_year": this_year_total,
         "total_collected": total_collected
     })
+@app.route('/api/stats/monthly_contributions')
+def get_monthly_contributions():
+    year = request.args.get('year', datetime.utcnow().year, type=int)
+
+    pipeline = [
+        {"$match": {"year": year}},
+        {"$group": {
+            "_id": "$month",
+            "total": {"$sum": "$amount"}
+        }},
+        {"$sort": {"_id": 1}}
+    ]
+
+    data = list(contributions_collection.aggregate(pipeline))
+
+    # Fill all 12 months
+    monthly_data = [0] * 12
+    for item in data:
+        month_index = item["_id"] - 1  # because _id=1 means January
+        if 0 <= month_index < 12:
+            monthly_data[month_index] = round(item["total"], 2)
+
+    return jsonify({
+        "year": year,
+        "monthly_contributions": monthly_data
+    })
+@app.route('/api/stats/payment_methods')
+def get_payment_methods():
+    pipeline = [
+        {"$group": {
+            "_id": "$payment_method",
+            "total": {"$sum": "$amount"}
+        }}
+    ]
+    data = list(contributions_collection.aggregate(pipeline))
+
+    labels = []
+    totals = []
+    for item in data:
+        labels.append(item["_id"])
+        totals.append(round(item["total"], 2))
+
+    return jsonify({
+        "labels": labels,
+        "totals": totals
+    })
+
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv('PORT', 5000)), debug=os.getenv('FLASK_DEBUG', 'False') == 'True')
