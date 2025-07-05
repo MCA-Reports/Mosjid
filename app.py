@@ -3,13 +3,13 @@ from flask_pymongo import PyMongo
 from datetime import datetime
 import re
 import os
-from dotenv import load_dotenv
+
 
 # Load environment variables
-load_dotenv()
+
 
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'fallback-secret-key-for-dev-only')
+app.secret_key = os.getenv('SECRET_KEY', '')
 app.config["MONGO_URI"] = "mongodb+srv://bdkz:bdkz2025@cluster0.yc3hbgc.mongodb.net/mosque_finance?retryWrites=true&w=majority&tls=true"
 
 mongo = PyMongo(app)
